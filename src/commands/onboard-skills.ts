@@ -7,6 +7,25 @@ import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { detectBinary, resolveNodeManagerOptions } from "./onboard-helpers.js";
 
+/**
+ * Decide whether onboarding should prompt for `skill.primaryEnv`.
+ *
+ * - Skills without `primaryEnv` are never prompted (handled by callers).
+ * - Skills that are env-only (no missing bins) always prompt — they have no install gate.
+ * - Skills with missing bins prompt only if the user opted into installing them.
+ *   Bin-bearing skills the user skipped: don't prompt for their env yet —
+ *   they can add it on next onboard run after installing.
+ */
+export function shouldPromptForSkillEnv(
+  skill: { name: string; primaryEnv?: string; missing: { bins: string[] } },
+  installSelected: ReadonlySet<string>,
+): boolean {
+  if (!skill.primaryEnv) return false;
+  const hasMissingBins = skill.missing.bins.length > 0;
+  if (!hasMissingBins) return true;
+  return installSelected.has(skill.name);
+}
+
 function summarizeInstallFailure(message: string): string | undefined {
   const cleaned = message.replace(/^Install failed(?:\s*\([^)]*\))?\s*:?\s*/i, "").trim();
   if (!cleaned) {
@@ -85,6 +104,9 @@ export async function setupSkills(
     (skill) => skill.install.length > 0 && skill.missing.bins.length > 0,
   );
   let next: OpenClawConfig = cfg;
+  // Track which bin-bearing skills the user opted into installing.
+  // Used by shouldPromptForSkillEnv to gate env-key prompts below.
+  const installSelected = new Set<string>();
   if (installable.length > 0) {
     const toInstall = await prompter.multiselect({
       message: "Install missing skill dependencies",
@@ -103,6 +125,7 @@ export async function setupSkills(
     });
 
     const selected = toInstall.filter((name) => name !== "__skip__");
+    for (const name of selected) installSelected.add(name);
 
     const selectedSkills = selected
       .map((name) => installable.find((s) => s.name === name))
@@ -199,7 +222,7 @@ export async function setupSkills(
   }
 
   for (const skill of missing) {
-    if (!skill.primaryEnv || skill.missing.env.length === 0) {
+    if (!shouldPromptForSkillEnv(skill, installSelected) || skill.missing.env.length === 0) {
       continue;
     }
     const wantsKey = await prompter.confirm({

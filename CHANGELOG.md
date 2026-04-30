@@ -41,6 +41,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- fix(onboard): skip API-key prompt for skills the user did not select for install — `openclaw onboard` no longer asks for `OPENAI_API_KEY` or `ELEVENLABS_API_KEY` when only the local `openai-whisper` was selected ([#74382](https://github.com/openclaw/openclaw/issues/74382)). Thanks @sanjarcode
 - Security/outbound: strip re-formed HTML tags during plain-text sanitization so nested tag fragments cannot leave a CodeQL-detected `<script>` sequence behind. Thanks @vincentkoc.
 - Security/secrets: compare credential bytes with padded timing-safe buffers instead of hashing candidate passwords before equality checks. Thanks @vincentkoc.
 - Security/QQBot: sanitize debug log arguments before writing to `console.*`, so gateway payload fields cannot forge extra log lines when debug logging is enabled. Thanks @vincentkoc.
